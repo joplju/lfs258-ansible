@@ -21,6 +21,7 @@
   ansible.builtin.package:
     name:
       - containerd
+      - python3-kubernetes
     state: latest
 
 - name: Install K8S repository
@@ -31,7 +32,7 @@
     uris: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/"
     suites: "/"
 
-- name: Install K8S client packages
+- name: Install K8S packages
   ansible.builtin.package:
     update_cache: true
     name:
@@ -41,7 +42,7 @@
     state: latest
   when: distro == "debian"
 
-- name: Hold K8S client packages
+- name: Hold K8S packages
   ansible.builtin.dpkg_selections:
     name: "{{ item }}"
     selection: hold

@@ -17,3 +17,4 @@ compose:
   ansible_ssh_common_args: "'-o StrictHostKeyChecking=no'"
   class: do_size.description | lower
   distro: do_image.distribution | lower
+  private_ip: do_networks.v4 | selectattr('type', 'eq', 'private') | map(attribute='ip_address') | first

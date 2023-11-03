@@ -1,0 +1,38 @@
+---
+- name: Enable br_netfilter modprobe
+  community.general.modprobe:
+    name: br_netfilter
+    persistent: present
+
+- name: Set IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+
+- name: Set custom kernel settings for bridging
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: '1'
+    sysctl_file: /etc/sysctl.d/local.conf
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+
+- name: Initialize the control plane
+  ansible.builtin.command:
+    argv:
+      - kubeadm
+      - init
+      - --control-plane-endpoint
+      - "{{ private_ip }}"
+    creates: /etc/kubernetes/manifests/kube-apiserver.yaml
+  register: kubeadm_init
+
+- name: Set KUBECONFIG globally
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: export KUBECONFIG=/etc/kubernetes/admin.conf
+
+- name: Confirm the join command for workers
+  ansible.builtin.debug:
+    var: kubeadm_init.stdout_lines[-2:] | join(' ') | regex_replace('\\', '') | regex_replace('\t', '')
