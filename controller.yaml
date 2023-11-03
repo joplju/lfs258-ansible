@@ -1,0 +1,5 @@
+---
+- hosts: lfs258_controller
+  roles:
+    - common
+    - controller

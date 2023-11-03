@@ -1,0 +1,4 @@
+---
+- name: Restart the instance
+  ansible.builtin.reboot:
+    msg: "Reboot initiated by Ansible"

@@ -1,0 +1,10 @@
+---
+- hosts: all
+  roles:
+    - role: common
+- hosts: lfs258_controller
+  roles:
+    - controller
+- hosts: lfs258_worker
+  roles:
+    - worker

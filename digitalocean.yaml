@@ -1,6 +1,6 @@
 ---
 plugin: community.digitalocean.digitalocean
-oauth_token: "'{{ lookup('ansible.builtin.env', 'DIGITALOCEAN_TOKEN') }}'"
+oauth_token: "{{ lookup('ansible.builtin.env', 'DIGITALOCEAN_ACCESS_TOKEN') }}"
 attributes:
   - id
   - name

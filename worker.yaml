@@ -1,0 +1,5 @@
+---
+- hosts: lfs258_worker
+  roles:
+    - common
+    - worker
