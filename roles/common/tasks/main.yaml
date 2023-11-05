@@ -21,8 +21,16 @@
   ansible.builtin.package:
     name:
       - containerd
+      - netcat-traditional
       - python3-kubernetes
     state: latest
+
+- name: Overwrite the default containerd config
+  ansible.builtin.copy:
+    src: containerd-config.toml
+    dest: /etc/containerd/config.toml
+  notify:
+    - 'common : Restart containerd'
 
 - name: Install K8S repository
   ansible.builtin.deb822_repository:
