@@ -5,8 +5,23 @@ nodeRegistration:
   criSocket: "unix:///var/run/containerd/containerd.sock"
 localAPIEndpoint:
   advertiseAddress: "{{ private_ip }}"
+patches:
+  directory: /root/kube-config-patches
+
+---
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+controlPlaneEndpoint: "{{ private_ip }}:6443"
+networking:
+  podSubnet: "10.244.0.0/16"
 
 ---
 kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
 cgroupDriver: systemd
+
+---
+kind: JoinConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+patches:
+  directory: /root/kube-config-patches

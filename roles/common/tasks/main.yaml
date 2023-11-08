@@ -3,6 +3,8 @@
   ansible.builtin.package:
     name: "*"
     state: latest
+  retries: 3
+  delay: 15
 
 - name: Check status of /var/run/reboot-required
   ansible.builtin.stat:
@@ -58,3 +60,50 @@
     - kubelet
     - kubeadm
     - kubectl
+
+- name: Enable modprobes
+  community.general.modprobe:
+    name: "{{ item }}"
+    persistent: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Set IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+
+- name: Set custom kernel settings for bridging
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: '1'
+    sysctl_file: /etc/sysctl.d/local.conf
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+
+- name: Adjust crictl.yaml runtime-endpoint
+  ansible.builtin.lineinfile:
+    path: /etc/crictl.yaml
+    create: true
+    line: "runtime-endpoint: \"unix:///var/run/containerd/containerd.sock\""
+    state: present
+    search_string: "runtime-endpoint:"
+
+- name: Adjust crictl.yaml image-endpoint
+  ansible.builtin.lineinfile:
+    path: /etc/crictl.yaml
+    create: true
+    line: "image-endpoint: \"unix:///var/run/containerd/containerd.sock\""
+    state: present
+    search_string: "image-endpoint:"
+
+- name: Create directory for config patches
+  ansible.builtin.file:
+    path: /root/kube-config-patches
+    state: directory
+
+- name: Set custom sysconfig for kubelets for corrected private IPs
+  ansible.builtin.template:
+    dest: /root/kube-config-patches/kubeletconfiguration0.yaml
+    src: kubeletconfiguration0.yaml

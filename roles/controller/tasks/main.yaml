@@ -1,43 +1,8 @@
 ---
-- name: Enable modprobes
-  community.general.modprobe:
-    name: "{{ item }}"
-    persistent: present
-  loop:
-    - br_netfilter
-    - overlay
-
-- name: Set IPv4 forwarding
-  ansible.posix.sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-
-- name: Set custom kernel settings for bridging
-  ansible.posix.sysctl:
-    name: "{{ item }}"
-    value: '1'
-    sysctl_file: /etc/sysctl.d/local.conf
-  loop:
-    - net.bridge.bridge-nf-call-iptables
-
 - name: Copy the config file template to the controller
   ansible.builtin.template:
     src: kubeadm-config.yaml.j2
     dest: ~/kubeadm-config.yaml
-
-- name: Adjust crictl.yaml runtime-endpoint
-  ansible.builtin.lineinfile:
-    path: /etc/crictl.yaml
-    line: "runtime-endpoint: \"unix:///var/run/containerd/containerd.sock\""
-    state: present
-    search_string: "runtime-endpoint:"
-
-- name: Adjust crictl.yaml image-endpoint
-  ansible.builtin.lineinfile:
-    path: /etc/crictl.yaml
-    line: "image-endpoint: \"unix:///var/run/containerd/containerd.sock\""
-    state: present
-    search_string: "image-endpoint:"
 
 - name: Initialize the control plane
   ansible.builtin.command:
@@ -49,34 +14,33 @@
     creates: /etc/kubernetes/manifests/kube-apiserver.yaml
   register: kubeadm_init
 
+- name: Show the result of what we'll attempt to put in the join command
+  ansible.builtin.debug:
+    msg: "{{ kubeadm_init.stdout_lines[-2:] | join(' ') | regex_replace('\\\\', '') | regex_replace('\t', '') }}"
+
+- name: Confirm the join command for workers
+  ansible.builtin.set_fact:
+    join_command: "{{ kubeadm_init.stdout_lines[-2:] | join(' ') | regex_replace('\\\\', '') | regex_replace('\t', '') }}"
+    cacheable: true
+  ignore_errors: true
+
+- name: Show the join command just in case
+  ansible.builtin.debug:
+    var: join_command
+
 - name: Set KUBECONFIG globally
   ansible.builtin.lineinfile:
     path: /etc/environment
     line: export KUBECONFIG=/etc/kubernetes/admin.conf
 
-- name: Download Cilium CLI
-  ansible.builtin.get_url:
-    checksum: sha256:https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz.sha256sum
-    url: https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz
-    dest: ~/
+- name: Wait for the kube-api pod to come online
+  ansible.builtin.wait_for:
+    port: 6443
+    sleep: 5
 
-- name: Extract and install Cilium CLI
-  ansible.builtin.unarchive:
-    dest: /usr/local/bin/
-    mode: '0755'
-    remote_src: true
-    src: ~/cilium-linux-amd64.tar.gz
-
-- name: Install Cilium
-  ansible.builtin.command:
-    argv:
-      - cilium
-      - install
-    creates: /etc/cni/net.d/05-cilium.conflist
-  retries: 3
-  delay: 5
-
-- name: Confirm the join command for workers
-  ansible.builtin.set_fact:
-    join_command: "{{ kubeadm_init.stdout_lines[-2:] | join(' ') | regex_replace('\\', '') | regex_replace('\t', '') }}"
-    cacheable: true
+- name: Install the Flannel manifest
+  kubernetes.core.k8s:
+    apply: true
+    kubeconfig: "{{ lookup('ansible.builtin.env', 'KUBECONFIG') }}"
+    src: https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+    state: present
