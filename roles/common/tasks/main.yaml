@@ -50,7 +50,6 @@
       - kubeadm
       - kubectl
     state: latest
-  when: distro == "debian"
 
 - name: Hold K8S packages
   ansible.builtin.dpkg_selections:
@@ -76,11 +75,9 @@
 
 - name: Set custom kernel settings for bridging
   ansible.posix.sysctl:
-    name: "{{ item }}"
+    name: net.bridge.bridge-nf-call-iptables
     value: '1'
     sysctl_file: /etc/sysctl.d/local.conf
-  loop:
-    - net.bridge.bridge-nf-call-iptables
 
 - name: Adjust crictl.yaml runtime-endpoint
   ansible.builtin.lineinfile:

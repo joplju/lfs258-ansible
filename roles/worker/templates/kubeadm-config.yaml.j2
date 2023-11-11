@@ -3,10 +3,10 @@ kind: JoinConfiguration
 apiVersion: kubeadm.k8s.io/v1beta3
 discovery:
   bootstrapToken: 
-    token: "{{ join_config.config_map.token }}"
-    apiServerEndpoint: "{{ join_config.config_map.controller_endpoint }}"
+    token: "{{ join_config.token }}"
+    apiServerEndpoint: "{{ join_config.controller_endpoint }}"
     caCertHashes:
-      - "{{ join_config.config_map.cert_hash }}"
+      - "{{ join_config.cert_hash }}"
 nodeRegistration:
   kubeletExtraArgs:
     node-ip: "{{ private_ip }}"

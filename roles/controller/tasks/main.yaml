@@ -23,22 +23,16 @@
 
 - name: Create the connection map
   ansible.builtin.set_fact:
-    join_config_map:
-      config_map:
-        "cert_hash": "{{ cert_hash }}"
-        "controller_endpoint": "{{ controller_endpoint }}"
-        "token": "{{ token }}"
-  when: kubeadm_init.changed == true
-
-- name: Show our variables
-  ansible.builtin.debug:
-    var: join_config_map
+    join_config:
+      "cert_hash": "{{ cert_hash }}"
+      "controller_endpoint": "{{ controller_endpoint }}"
+      "token": "{{ token }}"
   when: kubeadm_init.changed == true
 
 - name: Write a local file with the config
   ansible.builtin.copy:
-    content: "{{ join_config_map | to_json(indent=4) }}"
-    dest: /tmp/join_config_map.json
+    content: "{{ join_config | to_json(indent=4) }}"
+    dest: /tmp/join_config.json
   delegate_to: localhost
   when: kubeadm_init.changed == true
 
