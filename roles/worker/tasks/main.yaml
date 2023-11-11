@@ -1,0 +1,17 @@
+---
+- name: Get the configuration variables
+  ansible.builtin.set_fact:
+    join_config: "{{ lookup('ansible.builtin.file', '/tmp/join_config.json') | from_json }}"
+
+- name: Create the kubeadm config file
+  ansible.builtin.template:
+    dest: /root/kubeadm-config.yaml
+    src: kubeadm-config.yaml.j2
+
+- name: Join the node to the cluster
+  ansible.builtin.command:
+    argv:
+      - kubeadm
+      - join
+      - --config
+      - /root/kubeadm-config.yaml

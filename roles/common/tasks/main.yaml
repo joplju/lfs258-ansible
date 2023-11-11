@@ -1,0 +1,106 @@
+---
+- name: Install updates
+  ansible.builtin.package:
+    name: "*"
+    state: latest
+  retries: 3
+  delay: 15
+
+- name: Check status of /var/run/reboot-required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Is a reboot needed?
+  ansible.builtin.debug:
+    msg: "Reboot required."
+  when: reboot_required.stat.exists
+  changed_when: reboot_required.stat.exists
+  notify:
+    - 'common : Restart the instance'
+
+- name: Install common packages
+  ansible.builtin.package:
+    name:
+      - containerd
+      - netcat-traditional
+      - python3-kubernetes
+    state: latest
+
+- name: Overwrite the default containerd config
+  ansible.builtin.copy:
+    src: containerd-config.toml
+    dest: /etc/containerd/config.toml
+  notify:
+    - 'common : Restart containerd'
+
+- name: Install K8S repository
+  ansible.builtin.deb822_repository:
+    enabled: true
+    name: kubernetes
+    signed_by: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key"
+    uris: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/"
+    suites: "/"
+
+- name: Install K8S packages
+  ansible.builtin.package:
+    update_cache: true
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: latest
+
+- name: Hold K8S packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable modprobes
+  community.general.modprobe:
+    name: "{{ item }}"
+    persistent: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Set IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+
+- name: Set custom kernel settings for bridging
+  ansible.posix.sysctl:
+    name: net.bridge.bridge-nf-call-iptables
+    value: '1'
+    sysctl_file: /etc/sysctl.d/local.conf
+
+- name: Adjust crictl.yaml runtime-endpoint
+  ansible.builtin.lineinfile:
+    path: /etc/crictl.yaml
+    create: true
+    line: "runtime-endpoint: \"unix:///var/run/containerd/containerd.sock\""
+    state: present
+    search_string: "runtime-endpoint:"
+
+- name: Adjust crictl.yaml image-endpoint
+  ansible.builtin.lineinfile:
+    path: /etc/crictl.yaml
+    create: true
+    line: "image-endpoint: \"unix:///var/run/containerd/containerd.sock\""
+    state: present
+    search_string: "image-endpoint:"
+
+- name: Create directory for config patches
+  ansible.builtin.file:
+    path: /root/kube-config-patches
+    state: directory
+
+- name: Set custom sysconfig for kubelets for corrected private IPs
+  ansible.builtin.template:
+    dest: /root/kube-config-patches/kubeletconfiguration0.yaml
+    src: kubeletconfiguration0.yaml

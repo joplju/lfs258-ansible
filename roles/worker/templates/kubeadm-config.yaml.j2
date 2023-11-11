@@ -1,0 +1,14 @@
+---
+kind: JoinConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+discovery:
+  bootstrapToken: 
+    token: "{{ join_config.token }}"
+    apiServerEndpoint: "{{ join_config.controller_endpoint }}"
+    caCertHashes:
+      - "{{ join_config.cert_hash }}"
+nodeRegistration:
+  kubeletExtraArgs:
+    node-ip: "{{ private_ip }}"
+patches:
+  directory: /root/kube-config-patches

@@ -1,0 +1,20 @@
+---
+plugin: community.digitalocean.digitalocean
+oauth_token: "{{ lookup('ansible.builtin.env', 'DIGITALOCEAN_ACCESS_TOKEN') }}"
+attributes:
+  - id
+  - name
+  - image
+  - networks
+  - tags
+  - region
+keyed_groups:
+  - key: do_tags | lower
+    prefix: ''
+    separator: ''
+compose:
+  ansible_host: do_networks.v4 | selectattr('type', 'eq', 'public') | map(attribute='ip_address') | first
+  ansible_ssh_common_args: "'-o StrictHostKeyChecking=no'"
+  class: do_size.description | lower
+  distro: do_image.distribution | lower
+  private_ip: do_networks.v4 | selectattr('type', 'eq', 'private') | map(attribute='ip_address') | first

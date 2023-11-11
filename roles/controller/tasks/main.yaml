@@ -1,0 +1,112 @@
+---
+- name: Copy the config file template to the controller
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: ~/kubeadm-config.yaml
+
+- name: Initialize the control plane
+  ansible.builtin.command:
+    argv:
+      - kubeadm
+      - init
+      - --config
+      - kubeadm-config.yaml
+    creates: /etc/kubernetes/manifests/kube-apiserver.yaml
+  register: kubeadm_init
+
+- name: Set the various about connection as needed
+  ansible.builtin.set_fact:
+    cert_hash: "{{ kubeadm_init.stdout_lines[-1].split().1 }}"
+    controller_endpoint: "{{ kubeadm_init.stdout_lines[-2].split().2 }}"
+    token: "{{ kubeadm_init.stdout_lines[-2].split().4 }}"
+  when: kubeadm_init.changed == true
+
+- name: Create the connection map
+  ansible.builtin.set_fact:
+    join_config:
+      "cert_hash": "{{ cert_hash }}"
+      "controller_endpoint": "{{ controller_endpoint }}"
+      "token": "{{ token }}"
+  when: kubeadm_init.changed == true
+
+- name: Write a local file with the config
+  ansible.builtin.copy:
+    content: "{{ join_config | to_json(indent=4) }}"
+    dest: /tmp/join_config.json
+  delegate_to: localhost
+  when: kubeadm_init.changed == true
+
+- name: Set KUBECONFIG globally
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    line: export KUBECONFIG=/etc/kubernetes/admin.conf
+
+- name: Wait for the kube-api pod to come online
+  ansible.builtin.wait_for:
+    port: 6443
+    sleep: 5
+
+- name: Install Helm repo
+  ansible.builtin.deb822_repository:
+    enabled: true
+    name: helm
+    signed_by: https://baltocdn.com/helm/signing.asc
+    uris: https://baltocdn.com/helm/stable/debian/
+    suites: all
+    components:
+      - main
+
+- name: Install helm package
+  ansible.builtin.package:
+    state: latest
+    name:
+      - helm
+    update_cache: true
+
+- name: Download the current Cilium stable release version name
+  ansible.builtin.get_url:
+    dest: /root/cilium_stable.txt
+    url: https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt
+  register: cilium_version_file
+
+- name: Get the raw Cilium version
+  ansible.builtin.slurp:
+    src: /root/cilium_stable.txt
+  register: cilium_version_raw
+
+- name: Set the Cilium version text
+  ansible.builtin.set_fact:
+    cilium_cli_version: "{{ cilium_version_raw.content | b64decode | regex_replace('\\n') }}"
+
+- name: Download Cilium CLI
+  ansible.builtin.get_url:
+    url: "https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz"
+    checksum: "sha256:https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz.sha256sum"
+    dest: ~/cilium-linux-amd64.tar.gz
+
+- name: Decompress and extract the downloaded CLI
+  ansible.builtin.unarchive:
+    creates: /usr/local/bin/cilium
+    dest: /usr/local/bin
+    remote_src: true
+    src: /root/cilium-linux-amd64.tar.gz
+
+- name: Install Cilium
+  ansible.builtin.command:
+    argv:
+      - cilium
+      - install
+      - --version
+      - "{{ cilium_version }}"
+    creates: /etc/cni/net.d/05-cilium.conflist
+  register: result
+  until: result.failed == false
+  retries: 3
+  delay: 15
+
+- name: Wait for Cilium to set up network
+  ansible.builtin.command:
+    argv:
+      - cilium
+      - status
+      - --wait

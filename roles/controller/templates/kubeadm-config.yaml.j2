@@ -1,0 +1,19 @@
+---
+kind: InitConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+nodeRegistration:
+  criSocket: "unix:///var/run/containerd/containerd.sock"
+  kubeletExtraArgs:
+    node-ip: "{{ private_ip }}"
+patches:
+  directory: /root/kube-config-patches
+
+---
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+controlPlaneEndpoint: "{{ private_ip }}:6443"
+
+---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+cgroupDriver: systemd
