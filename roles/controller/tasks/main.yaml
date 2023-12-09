@@ -41,6 +41,11 @@
     path: /etc/environment
     line: export KUBECONFIG=/etc/kubernetes/admin.conf
 
+- name: Enable bash completion
+  ansible.builtin.copy:
+    dest: /etc/profile.d/99-kubectl.sh
+    src: 99-kubectl.sh
+
 - name: Wait for the kube-api pod to come online
   ansible.builtin.wait_for:
     port: 6443
